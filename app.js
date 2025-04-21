@@ -8,10 +8,17 @@ var indexRouter = require('./routes/index');
 var enquiriesRouter = require('./routes/enquiries');
 
 var app = express();
-
+const corsOptions = {
+  origin: ["http://localhost:3000","https://nationaloutdoorschool.com"],
+  methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'PATCH'],
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 // view engine setup
 app.use(logger('dev'));
 app.use(express.json());
+//allow cors whitelisted domains
+
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
