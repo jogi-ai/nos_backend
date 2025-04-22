@@ -506,7 +506,73 @@ async function handleContactSubmission(request,response){
     return response.json({ error: "Failed to process contact form" }, { status: 500 })
   }
 }
+
 router.post('/contact', handleContactSubmission);
+
+
+const newsletterListId = "c0bd05be-40dd-48bf-ab70-2604f3305933"
+async function addToSendGridListNewsletter(email) {
+  const dataToSend = {
+    email
+  }
+  const response = await fetch("https://api.sendgrid.com/v3/marketing/contacts", {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      list_ids: [newsletterListId], // Using the newsletter list for contacts
+      contacts: [
+        dataToSend,
+      ],
+    }),
+  })
+
+  console.log("SendGrid response status:", response.status)
+  if (response.status !=  202) {
+    console.log("SendGrid response error:", response.statusText)
+    console.log("SendGrid response body:", await response.json())
+    throw new Error(`SendGrid API error: ${response.statusText} (${response.status}) ${JSON.stringify(await response.json())}`)
+  }
+  const responseData = await response.json()
+  console.log("SendGrid response:", responseData)
+
+  return responseData
+}
+
+async function handleNewsletterSubmission(request,response){
+  try {
+    const data = await request.body
+    
+    //trim all fields
+    for (const key in data) {
+      if (typeof data[key] === "string") {
+        (data[key]) = data[key].trim();
+      }
+    }
+    const { email } = data
+    
+    // Validate email format
+    const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i
+    if (!emailRegex.test(email)) {
+      return response.json({ error: "Invalid email format" }, { status: 400 })
+    }
+
+    // 3. Add to SendGrid list
+    try {
+      await addToSendGridListNewsletter(email)
+    } catch (error) {
+      console.error("SendGrid list error:", error)
+    }
+
+    return response.json({ success: true })
+  } catch (error) {
+    console.error("Contact form error:", error)
+    return response.json({ error: "Failed to process contact form" }, { status: 500 })
+  }
+}
+router.post('/newsletter', handleNewsletterSubmission);
 
 
 
