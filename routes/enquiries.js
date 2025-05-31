@@ -220,7 +220,7 @@ async function handleCourseSubmission(request,response){
     }
 
     // Validate preferredCourseDate
-    const validCourseDates = ["may-22-may-25", "may-15-may-18", "may-29-june-1"]
+    const validCourseDates = ["jul-3-jul-6", "jul-10-jul-13", "jul-17-jul-20","jul-31-aug-3","aug-7-aug-10","aug-14-aug-17","aug-21-aug-24"]
     if (!data.preferredCourseDate || !validCourseDates.includes(data.preferredCourseDate)) {
       errors.preferredCourseDate = "Preferred course date is invalid."
     }
@@ -242,7 +242,7 @@ async function handleCourseSubmission(request,response){
 
     // If there are errors, return a 400 response
     if (Object.keys(errors).length > 0) {
-      return response.json({ error: "Validation failed", details: errors }, { status: 400 })
+      return response.status(400).json({ error: "Validation failed", details: errors })
     }
 
     // 1. Add to SendGrid list
