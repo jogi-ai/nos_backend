@@ -220,7 +220,7 @@ async function handleCourseSubmission(request,response){
     }
 
     // Validate preferredCourseDate
-    const validCourseDates = ["jul-3-jul-6", "jul-10-jul-13", "jul-17-jul-20","jul-31-aug-3","aug-7-aug-10","aug-14-aug-17","aug-21-aug-24"]
+    const validCourseDates = ["jul-3-jul-6", "jul-10-jul-13", "jul-16-jul-19","jul-31-aug-3","aug-7-aug-10","aug-14-aug-17","aug-21-aug-24"]
     if (!data.preferredCourseDate || !validCourseDates.includes(data.preferredCourseDate)) {
       errors.preferredCourseDate = "Preferred course date is invalid."
     }
