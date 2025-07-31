@@ -10,7 +10,7 @@ const nosEnquiriesRouter = require('./routes/nos/enquiries');
 const aisEnquiriesRouter = require('./routes/ais/enquiries');
 const app = express();
 const corsOptions = {
-  origin: ["http://localhost:3000","https://nationaloutdoorschool.com"],
+  origin: ["http://localhost:3000","https://nationaloutdoorschool.com","https://aisthetic.co"],
   methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'PATCH'],
   optionsSuccessStatus: 200
 };
