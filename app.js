@@ -6,7 +6,7 @@ const logger = require('morgan');
 const cors = require('cors');
 const indexRouter = require('./routes/index');
 const enquiriesRouter = require('./routes/enquiries');
-
+const testRouter = require('./routes/test');
 const app = express();
 const corsOptions = {
   origin: ["http://localhost:3000","https://nationaloutdoorschool.com"],
@@ -25,6 +25,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/enquiries', enquiriesRouter);
+app.use('/test', testRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

@@ -3,13 +3,15 @@ var router = express.Router();
 
 
 const { google } = require("googleapis")
-const sgMail = require("@sendgrid/mail")
+const sgMail = require("@sendgrid/mail");
+const { sendEmailSES } = require('../lib/email');
 
 // Initialize SendGrid with API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "")
 
 // Course enquiries related functions
-
+const source = "National Outdoor School <info@nationaloutdoorschool.com>"
+const replyToEmail = "info@nationaloutdoorschool.com"
 const courseDataNameWise = {
     "White Water Kayaking Foundation Course" : {
         listId:  "f999ef6e-6be4-4d13-b0d6-a0dc8b9dfab7",
@@ -51,49 +53,11 @@ async function addToSendGridListCourse(data) {
   console.log("SendGrid response status:", response.status)
   if (response.status !=  202) {
     console.log("SendGrid response error:", response.statusText)
-    console.log("SendGrid response body:", await response.json())
-    throw new Error(`SendGrid API error: ${response.statusText} (${response.status}) ${JSON.stringify(await response.json())}`)
+    const errorBody = await response.json();
+    console.log(`SendGrid API error: ${response.statusText} (${response.status}) ${JSON.stringify(errorBody)}`)
+  } else {
+    console.log("Added to SendGrid list successfully")
   }
-  const responseData = await response.json()
-  console.log("SendGrid response:", responseData)
-  return responseData
-}
-
-// Send email to school
-async function sendEmailToSchoolCourse(data) {
-  const { fullName, email, phone, age, gender, preferredCourseDate, courseName, message } = data
-
-  const msg = {
-    to: "info@nationaloutdoorschool.com",
-    from: {
-      email: "noreply@nationaloutdoorschool.com",
-      name: "Website Enquiry",
-    },
-    subject: `New Course Registration: ${courseName}`,
-    text: `
-      New registration for ${courseName}
-      
-      Name: ${fullName}
-      Email: ${email}
-      Phone: ${phone}
-      Age: ${age}
-      Gender: ${gender}
-      Preferred Course Date: ${preferredCourseDate}
-      Message: ${message || "No message provided"}
-      
-    `,
-    html: `
-      <h2>New registration for ${courseName}</h2>
-      <p><strong>Name:</strong> ${fullName}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Phone:</strong> ${phone}</p>
-      <p><strong>Age:</strong> ${age}</p>
-      <p><strong>Gender:</strong> ${gender}</p>
-      <p><strong>Preferred Course Date:</strong> ${preferredCourseDate}</p>
-      <p><strong>Message:</strong> ${message || "No message provided"}</p>
-    `,
-  }
-  await sgMail.send(msg)
 }
 
 // Add to Google Sheet
@@ -133,35 +97,132 @@ async function addToGoogleSheetCourse(data) {
   })
 }
 
+// Send email to school
+async function sendEmailToSchoolCourse(data) {
+  const { fullName, email, phone, age, gender, preferredCourseDate, courseName, message } = data
+
+  // const msg = {
+  //   to: "info@nationaloutdoorschool.com",
+  //   from: {
+  //     email: "noreply@nationaloutdoorschool.com",
+  //     name: "Website Enquiry",
+  //   },
+  //   subject: `New Course Registration: ${courseName}`,
+  //   text: `
+  //     New registration for ${courseName}
+      
+  //     Name: ${fullName}
+  //     Email: ${email}
+  //     Phone: ${phone}
+  //     Age: ${age}
+  //     Gender: ${gender}
+  //     Preferred Course Date: ${preferredCourseDate}
+  //     Message: ${message || "No message provided"}
+      
+  //   `,
+  //   html: `
+  //     <h2>New registration for ${courseName}</h2>
+  //     <p><strong>Name:</strong> ${fullName}</p>
+  //     <p><strong>Email:</strong> ${email}</p>
+  //     <p><strong>Phone:</strong> ${phone}</p>
+  //     <p><strong>Age:</strong> ${age}</p>
+  //     <p><strong>Gender:</strong> ${gender}</p>
+  //     <p><strong>Preferred Course Date:</strong> ${preferredCourseDate}</p>
+  //     <p><strong>Message:</strong> ${message || "No message provided"}</p>
+  //   `,
+  // }
+  // await sgMail.send(msg)
+  const text = `
+      New registration for ${courseName}
+      Name: ${fullName}
+      Email: ${email}
+      Phone: ${phone}
+      Age: ${age}
+      Gender: ${gender}
+      Preferred Course Date: ${preferredCourseDate}
+      Message: ${message || "No message provided"} 
+    `
+    const html = `
+      <h2>New registration for ${courseName}</h2>
+      <p><strong>Name:</strong> ${fullName}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Phone:</strong> ${phone}</p>
+      <p><strong>Age:</strong> ${age}</p>
+      <p><strong>Gender:</strong> ${gender}</p>
+      <p><strong>Preferred Course Date:</strong> ${preferredCourseDate}</p>
+      <p><strong>Message:</strong> ${message || "No message provided"}</p>
+    `
+  await sendEmailSES([source], text, html, "Website Enquiry", source, [email])
+}
+
 // Send thank you email to registrant
 async function sendThankYouEmailCourse(data) {
   const { fullName, email, courseName } = data
   
-  const msg = {
-    to: email,
-    from: {
-      name: "National Outdoor School",
-      email: "noreply@nationaloutdoorschool.com"
-    },
-    subject: `Thank You for Registering for ${courseName}`,
-    text: `
-      Dear ${fullName},
+  // const msg = {
+  //   to: email,
+  //   from: {
+  //     name: "National Outdoor School",
+  //     email: "noreply@nationaloutdoorschool.com"
+  //   },
+  //   subject: `Thank You for Registering for ${courseName}`,
+  //   text: `
+  //     Dear ${fullName},
       
-      Thank you for enquiring about the ${courseName}. We're excited to have you join us!
+  //     Thank you for enquiring about the ${courseName}. We're excited to have you join us!
       
-      Here's what to expect next:
+  //     Here's what to expect next:
       
-      1. You'll receive a call from one of our representatives to confirm your eligiblity for the course.
-      2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the course.
+  //     1. You'll receive a call from one of our representatives to confirm your eligiblity for the course.
+  //     2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the course.
       
-      If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
+  //     If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
       
-      We look forward to seeing you on the water!
+  //     We look forward to seeing you on the water!
       
-      Best regards,
-      The National Outdoor School Team
-    `,
-    html: `
+  //     Best regards,
+  //     The National Outdoor School Team
+  //   `,
+  //   html: `
+  //     <p>Dear ${fullName},</p>
+      
+  //     <p>Thank you for registering for our <strong>${courseName}</strong>. We're excited to have you join us!</p>
+      
+  //     <p>Here's what to expect next:</p>
+      
+  //     <ol>
+  //       <li>You'll receive a call from one of our representatives to confirm your eligiblity for the course.</li>
+  //       <li>You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the course.</li>
+  //     </ol>
+      
+  //     <p>If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.</p>
+
+  //     <p>We look forward to seeing you on the water!</p>
+      
+  //     <p>Best regards,<br>
+  //     The National Outdoor School Team</p>
+  //   `
+  // }
+
+  // await sgMail.send(msg)
+    const text = `
+        Dear ${fullName},
+        
+        Thank you for enquiring about the ${courseName}. We're excited to have you join us!
+        
+        Here's what to expect next:
+        
+        1. You'll receive a call from one of our representatives to confirm your eligiblity for the course.
+        2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the course.
+        
+        If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
+        
+        We look forward to seeing you on the water!
+        
+        Best regards,
+        The National Outdoor School Team
+    `
+    const html = `
       <p>Dear ${fullName},</p>
       
       <p>Thank you for registering for our <strong>${courseName}</strong>. We're excited to have you join us!</p>
@@ -180,9 +241,7 @@ async function sendThankYouEmailCourse(data) {
       <p>Best regards,<br>
       The National Outdoor School Team</p>
     `
-  }
-
-  await sgMail.send(msg)
+  await sendEmailSES([email], text, html, `Thank You for Registering for ${courseName}`, source, [replyToEmail])
 }
 
 async function handleCourseSubmission(request,response){
@@ -295,14 +354,35 @@ const listId = "3c4f0022-71dc-44c9-b18c-419ead68836a"
 async function sendEmailToSchool(data) {
   const { name, email, phone, message } = data
 
-  const msg = {
-    to: "info@nationaloutdoorschool.com",
-    from: {
-      email: "noreply@nationaloutdoorschool.com",
-      name: "Website Enquiry - Contact Form",
-    },
-    subject: `New Contact Form Submission from ${name}`,
-    text: `
+  // const msg = {
+  //   to: "info@nationaloutdoorschool.com",
+  //   from: {
+  //     email: "noreply@nationaloutdoorschool.com",
+  //     name: "Website Enquiry - Contact Form",
+  //   },
+  //   subject: `New Contact Form Submission from ${name}`,
+  //   text: `
+  //     New contact form submission
+      
+  //     Name: ${name}
+  //     Email: ${email}
+  //     Phone: ${phone || "Not provided"}
+      
+  //     Message:
+  //     ${message}
+  //   `,
+  //   html: `
+  //     <h2>New Contact Form Submission</h2>
+  //     <p><strong>Name:</strong> ${name}</p>
+  //     <p><strong>Email:</strong> ${email}</p>
+  //     <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
+  //     <h3>Message:</h3>
+  //     <p>${message.replace(/\n/g, "<br>")}</p>
+  //   `,
+  // }
+
+  // await sgMail.send(msg)
+  const text = `
       New contact form submission
       
       Name: ${name}
@@ -311,18 +391,16 @@ async function sendEmailToSchool(data) {
       
       Message:
       ${message}
-    `,
-    html: `
+    `
+    const html = `
       <h2>New Contact Form Submission</h2>
       <p><strong>Name:</strong> ${name}</p>
       <p><strong>Email:</strong> ${email}</p>
       <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
       <h3>Message:</h3>
       <p>${message.replace(/\n/g, "<br>")}</p>
-    `,
-  }
-
-  await sgMail.send(msg)
+    `
+  await sendEmailSES([source], text, html, "Website Contact Form Enquiry", source, [email])
 }
 
 // Add to Google Sheet
@@ -392,25 +470,56 @@ async function addToSendGridList(data) {
     }),
   })
 
-  if (!response.ok) {
-    throw new Error(`SendGrid API error: ${response.statusText}`)
+  if (response.status !=  202) {
+    console.log("SendGrid response error:", response.statusText)
+    const errorBody = await response.json();
+    console.log(`SendGrid API error: ${response.statusText} (${response.status}) ${JSON.stringify(errorBody)}`)
+  } else {
+    console.log("Added to SendGrid list successfully")
   }
-
-  return await response.json()
 }
 
 // Send thank you email to registrant
 async function sendThankYouEmail(data) {
   const { name, email, message } = data
   
-  const msg = {
-    to: email,
-    from: {
-      name: "National Outdoor School",
-      email: "noreply@nationaloutdoorschool.com"
-    },
-    subject: `Received your enquiry`,
-    text: `
+  // const msg = {
+  //   to: email,
+  //   from: {
+  //     name: "National Outdoor School",
+  //     email: "noreply@nationaloutdoorschool.com"
+  //   },
+  //   subject: `Received your enquiry`,
+  //   text: `
+  //     Dear ${name},
+      
+  //     We have received your enquiry and will get back to you shortly.
+
+  //     Your message:
+  //     -----
+  //     "${message}"
+  //     -----
+      
+  //     Best regards,
+  //     The National Outdoor School Team
+  //   `,
+  //   html: `
+  //     <p>Dear ${name},</p>
+      
+  //     <p>We have received your enquiry and will get back to you shortly.</p>
+      
+  //     <p>Your message:</p>
+  //     <p>-----</p>
+  //     <p>${message}</p>
+  //     <p>-----</p>
+      
+  //     <p>Best regards,<br>
+  //     The National Outdoor School Team</p>
+  //   `
+  // }
+
+  // await sgMail.send(msg)
+  const text = `
       Dear ${name},
       
       We have received your enquiry and will get back to you shortly.
@@ -422,8 +531,8 @@ async function sendThankYouEmail(data) {
       
       Best regards,
       The National Outdoor School Team
-    `,
-    html: `
+    `
+    const html = `
       <p>Dear ${name},</p>
       
       <p>We have received your enquiry and will get back to you shortly.</p>
@@ -436,9 +545,7 @@ async function sendThankYouEmail(data) {
       <p>Best regards,<br>
       The National Outdoor School Team</p>
     `
-  }
-
-  await sgMail.send(msg)
+  await sendEmailSES([email], text, html, "Received your enquiry", source, [replyToEmail])
 }
 
 // Contact us related functions end
