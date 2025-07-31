@@ -155,7 +155,7 @@ async function handleContactSubmission(request,response){
   }
 }
 
-router.post('/', handleContactSubmission);
+router.post('/contact', handleContactSubmission);
 
 
 
