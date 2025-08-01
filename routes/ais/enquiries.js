@@ -2,19 +2,22 @@ var express = require('express');
 var router = express.Router();
 const { google } = require("googleapis")
 const { sendEmailSES } = require('../../lib/email');
-const { validateEmail, validatePhone } = require('../../lib/helpers');
+const { validateEmail, validatePhone, validateFullName, validateEmailRequired, validSelectedSkills, validatePhoneNumber, validateOtherInfo } = require('../../lib/helpers');
 
-// Course enquiries related functions
-const to = "jogi@aisthetic.co"
-const source = "Aisthetic <hello@aisthetic.co>"
-const replyToEmail = "hello@aisthetic.co"
 const MIN_MESSAGE_LENGTH = 20
 const MAX_MESSAGE_LENGTH = 5000
 const MAX_NAME_LENGTH = 100
 const MAX_COMPANY_LENGTH = 100
-// Contact related functions
+
+
+const to = "jogi@aisthetic.co"
+const toCareers = "careers@aisthetic.co"
+const source = "Aisthetic <hello@aisthetic.co>"
+const replyToEmail = "hello@aisthetic.co"
+
 
 const spreadsheetId = "1_RGGTAuJ0Y0oEjZKKrMwxVdlCdxk2t5ofOnla-GmU-c"
+const careersSpreadsheetId = "1h5DBDIXO5SLU-s873WaHUa8uaYnuuOpp5PVBTcD9zaE"
 
 
 // Add to Google Sheet
@@ -156,6 +159,146 @@ async function handleContactSubmission(request,response){
 }
 
 router.post('/contact', handleContactSubmission);
+
+
+async function addToGoogleSheetCareers(data) {
+
+  const { fullName, selectedSkills, email, phoneNumber, applyFor, otherInfo } = data  
+  const mainSkills = selectedSkills.map(mainSkill=>mainSkill.label).join(", ")
+  const design = selectedSkills.find(skill=>skill.label=="Design")
+  const designSkills = design?design?.selectedSubSkills?.map(subSkill=>subSkill.label).join(", "):""
+  const fe = selectedSkills.find(skill=>skill.label=="Frontend development")
+  const feSkills = fe?fe?.selectedSubSkills?.map(subSkill=>subSkill.label).join(", "):""
+  const be = selectedSkills.find(skill=>skill.label=="Backend development")
+  const beSkills = be?be?.selectedSubSkills?.map(subSkill=>subSkill.label).join(", "):""
+  const mobile = selectedSkills.find(skill=>skill.label=="Mobile development")
+  const mobileSkills = mobile?mobile?.selectedSubSkills?.map(subSkill=>subSkill.label).join(", "):""
+  const devops = selectedSkills.find(skill=>skill.label=="Dev Ops")
+  const devopsSkills = devops?devops?.selectedSubSkills?.map(subSkill=>subSkill.label).join(", "):""
+  const values = [
+      [
+          
+          fullName,
+          email,
+          phoneNumber,
+          mainSkills,
+          designSkills,
+          feSkills,
+          beSkills,
+          mobileSkills,
+          devopsSkills,
+          applyFor,
+          otherInfo
+      ]
+  ]
+  // Authenticate with Google Sheets API
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  })
+
+  const sheets = google.sheets({ version: "v4", auth })
+
+  // Append data to the sheet
+  await sheets.spreadsheets.values.append({
+    spreadsheetId:careersSpreadsheetId,
+    range: "Talent!A:K", // Adjust based on your sheet
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values,
+    },
+  })
+}
+
+async function sendEmailCareers(data){
+    const { fullName, email, phoneNumber, selectedSkills, applyFor, otherInfo } = data
+    let text = `Full name: ${fullName}\nEmail: ${email}\nPhone: ${phoneNumber}\nRole: ${applyFor}\nOther info: ${otherInfo}`
+    let skills = ""
+    selectedSkills.forEach((selectedSkill,i)=>{
+        if(i==0)
+            skills = `${selectedSkill.label}`
+        else
+            skills = `${skills}\n\n${selectedSkill.label}`
+        if(selectedSkill?.selectedSubSkills?.length>0){
+            selectedSkill.selectedSubSkills.forEach((subSkill,j)=>{
+                if(j==0)
+                    skills = `${skills}\n${subSkill.label}`
+                else
+                    skills = `${skills}, ${subSkill.label}`
+            })
+        }
+    })
+    text = `${text}\n\nSkills:\n\n${skills}`
+    await sendEmailSES([toCareers], text, null, "Application from Candidate", source, [email])
+
+}
+
+function validateFields(data){
+    if(typeof data != "object")
+        return [{code:"invalidReqBody"}]
+    let keys = Object.keys(data)
+    const allowedKeys = ["fullName","email","phoneNumber","selectedSkills","quizAnswer","applyFor","otherInfo","website"]
+    let invalidKey = ""
+    for(let i=0;i<keys.length;i++){
+        if(!allowedKeys.includes(keys[i])){
+            invalidKey = keys[i]
+            break
+        }
+    }
+    if(invalidKey)
+        return [{code:"invalidKey",key:invalidKey}]
+    let errors = []
+    if((!data.fullName || validateFullName(data.fullName)))
+        errors.push({field:"fullName"})
+    if((!data.email || validateEmailRequired(data.email)))
+        errors.push({field:"email"})
+    if((!validSelectedSkills(data.selectedSkills)))
+        errors.push({field:"selectedSkills"})
+    if((!data.phoneNumber || validatePhoneNumber(data.phoneNumber)))
+        errors.push({field:"phoneNumber"})
+    if(!data.quizAnswer || (data.quizAnswer.toLowerCase() != "hyper" && data.quizAnswer.toLowerCase() != "hypertext"))
+        errors.push({field:"quizAnswer"})
+    if((!data.applyFor || (data.applyFor != "Full time role" && data.applyFor != "Contract work")))
+        errors.push({field:"applyFor"})
+    if(validateOtherInfo(data.otherInfo))
+        errors.push({field:"otherInfo"})
+    if(data.website)
+        errors.push({field:"website"})
+    return errors
+}
+
+async function handleApply(request,response){
+  try {
+    const data = await request.body
+    let errors = validateFields(data)
+    if(errors.length == 0){
+        try {
+            sendEmailCareers(data)
+        } catch (error) {
+            console.error("Email send error:", error)
+        }
+
+        // 2. Add to Google Sheet
+        try {
+            addToGoogleSheetCareers(data)
+        } catch (error) {
+            console.error("Google Sheet error:", error)
+        }
+    } else {
+      console.log("spam")
+      response.status(200).json({status:"ok"})
+    }
+    return response.status(200).json({status:"ok"})
+  } catch (error) {
+    console.error("Contact form error:", error)
+    return response.json({ error: "Failed to process contact form" }, { status: 500 })
+  }
+}
+
+router.post('/careers', handleApply);
 
 
 
