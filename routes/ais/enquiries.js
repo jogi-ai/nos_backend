@@ -88,7 +88,7 @@ async function sendThankYouEmail(data) {
   await sendEmailSES([email], text, html, "Received your enquiry", source, [replyToEmail])
 }
 async function sendEmail(data) {
-  const { name, email, company, phone, message } = data
+  const { name, email, company, phone, message, website } = data
 
   const text = `
       New contact form submission
@@ -106,8 +106,9 @@ async function sendEmail(data) {
       <p><strong>Email:</strong> ${email}</p>
       <p><strong>Company:</strong> ${company || "Not provided"}</p>
       <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
-      <h3>Message:</h3>
+      <p><strong>Message:</strong></p>
       <p>${message.replace(/\n/g, "<br>")}</p>
+      <p><strong>Website:</strong> ${website || "Not provided"}</p>
     `
   await sendEmailSES([to], text, html, "Website Contact Form Enquiry", source, [email])
 }
