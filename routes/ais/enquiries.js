@@ -3,6 +3,8 @@ var router = express.Router();
 const { google } = require("googleapis")
 const { sendEmailSES } = require('../../lib/email');
 const { validateEmail, validatePhone, validateFullName, validateEmailRequired, validSelectedSkills, validatePhoneNumber, validateOtherInfo } = require('../../lib/helpers');
+const { body, validationResult, matchedData } = require('express-validator');
+
 
 const MIN_MESSAGE_LENGTH = 20
 const MAX_MESSAGE_LENGTH = 5000
@@ -108,27 +110,21 @@ async function sendEmail(data) {
       <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
       <p><strong>Message:</strong></p>
       <p>${message.replace(/\n/g, "<br>")}</p>
-      <p><strong>Website:</strong> ${website || "Not provided"}</p>
     `
   await sendEmailSES([to], text, html, "Website Contact Form Enquiry", source, [email])
 }
-// Contact us related functions end
-function validateFields(data){
-    return  data?.name?.length == 0 ||
-            data?.name?.length > MAX_NAME_LENGTH ||
-            !validateEmail(data?.email) ||
-            (data?.phone && !validatePhone(data?.phone)) ||
-            data?.company?.length > MAX_COMPANY_LENGTH ||
-            data?.message?.length == 0 ||
-            data?.message?.length < MIN_MESSAGE_LENGTH ||
-            data?.message?.length > MAX_MESSAGE_LENGTH ||
-            data?.website?false:true 
-}
+
 async function handleContactSubmission(request,response){
   try {
-    const data = await request.body
-    let fieldsValidated = validateFields(data)
-    if(fieldsValidated){
+    // Check for validation errors
+    const errors = validationResult(request);
+    if (!errors.isEmpty()) {
+      return response.status(400).json({ errors: errors.array() });
+    }
+    const data = matchedData(request);
+    console.log("data",data)
+    response.status(200).json({status:"ok"})
+    if(!data.website){
         try {
             sendEmail(data)
         } catch (error) {
@@ -148,18 +144,52 @@ async function handleContactSubmission(request,response){
         } catch (error) {
             console.error("Thank you email error:", error)
         }
-    } else {
-      console.log("spam")
-      response.status(200).json({status:"ok"})
     }
-    return response.status(200).json({status:"ok"})
   } catch (error) {
     console.error("Contact form error:", error)
     return response.json({ error: "Failed to process contact form" }, { status: 500 })
   }
 }
 
-router.post('/contact', handleContactSubmission);
+// Validation middleware for contact form
+const validateContactForm = [
+  body('name')
+    .trim()
+    .notEmpty()
+    .escape()
+    .withMessage('Name is required')
+    .isLength({ min: 1, max: MAX_NAME_LENGTH }).withMessage(`Name must be between 1 and ${MAX_NAME_LENGTH} characters`),
+  
+  body('email')
+    .trim()
+    .notEmpty()
+    .escape()
+    .withMessage('Email is required')
+    .isEmail().withMessage('Please provide a valid email address'),
+  
+  body('phone')
+    .optional({ checkFalsy: true })
+    .trim()
+    .matches(/^[\d+\-() ]+$/)
+    .escape()
+    .withMessage('Phone can only contain numbers and characters: + - ( )')
+    .isLength({ max: 20 }).withMessage('Phone number must not exceed 20 characters'),
+  
+  body('company')
+    .optional({ checkFalsy: true })
+    .trim()
+    .escape()
+    .isLength({ max: MAX_COMPANY_LENGTH }).withMessage(`Company name must not exceed ${MAX_COMPANY_LENGTH} characters`),
+  
+  body('message')
+    .trim()
+    .notEmpty()
+    .escape()
+    .withMessage('Message is required')
+    .isLength({ min: MIN_MESSAGE_LENGTH, max: MAX_MESSAGE_LENGTH }).withMessage(`Message must be between ${MIN_MESSAGE_LENGTH} and ${MAX_MESSAGE_LENGTH} characters`)
+];
+
+router.post('/contact', validateContactForm, handleContactSubmission);
 
 
 async function addToGoogleSheetCareers(data) {
