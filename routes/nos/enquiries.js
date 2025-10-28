@@ -17,6 +17,9 @@ const courseDataNameWise = {
         listId:  "f999ef6e-6be4-4d13-b0d6-a0dc8b9dfab7",
         sheetId: "1Gs37hkZyCOQ9EOiXeZoI7h_CW3VeyMuwiAHxGbP38XI"  
     },
+    "Guided White Water Kayaking Trip - Kali River" : {
+        sheetId: "1TWMAx9C3yafsJ_rYU6EIKDwM1IroPyUNNPDPzu3IiTY"  
+    },
 }
 
 // Add contact to SendGrid list
@@ -158,53 +161,6 @@ async function sendEmailToSchoolCourse(data) {
 // Send thank you email to registrant
 async function sendThankYouEmailCourse(data) {
   const { fullName, email, courseName } = data
-  
-  // const msg = {
-  //   to: email,
-  //   from: {
-  //     name: "National Outdoor School",
-  //     email: "noreply@nationaloutdoorschool.com"
-  //   },
-  //   subject: `Thank You for Registering for ${courseName}`,
-  //   text: `
-  //     Dear ${fullName},
-      
-  //     Thank you for enquiring about the ${courseName}. We're excited to have you join us!
-      
-  //     Here's what to expect next:
-      
-  //     1. You'll receive a call from one of our representatives to confirm your eligiblity for the course.
-  //     2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the course.
-      
-  //     If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
-      
-  //     We look forward to seeing you on the water!
-      
-  //     Best regards,
-  //     The National Outdoor School Team
-  //   `,
-  //   html: `
-  //     <p>Dear ${fullName},</p>
-      
-  //     <p>Thank you for registering for our <strong>${courseName}</strong>. We're excited to have you join us!</p>
-      
-  //     <p>Here's what to expect next:</p>
-      
-  //     <ol>
-  //       <li>You'll receive a call from one of our representatives to confirm your eligiblity for the course.</li>
-  //       <li>You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the course.</li>
-  //     </ol>
-      
-  //     <p>If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.</p>
-
-  //     <p>We look forward to seeing you on the water!</p>
-      
-  //     <p>Best regards,<br>
-  //     The National Outdoor School Team</p>
-  //   `
-  // }
-
-  // await sgMail.send(msg)
     const text = `
         Dear ${fullName},
         
@@ -225,7 +181,7 @@ async function sendThankYouEmailCourse(data) {
     const html = `
       <p>Dear ${fullName},</p>
       
-      <p>Thank you for registering for our <strong>${courseName}</strong>. We're excited to have you join us!</p>
+      <p>Thank you for registering for <strong>${courseName}</strong>. We're excited to have you join us!</p>
       
       <p>Here's what to expect next:</p>
       
@@ -279,7 +235,7 @@ async function handleCourseSubmission(request,response){
     }
 
     // Validate preferredCourseDate
-    const validCourseDates = ["jul-3-jul-6", "jul-10-jul-13", "jul-16-jul-19","jul-31-aug-3","aug-7-aug-10","aug-14-aug-17","aug-21-aug-24"]
+    const validCourseDates = ["jul-3-jul-6", "jul-10-jul-13", "jul-16-jul-19","jul-31-aug-3","aug-7-aug-10","aug-14-aug-17","aug-21-aug-24","nov-27-nov-30","other"]
     if (!data.preferredCourseDate || !validCourseDates.includes(data.preferredCourseDate)) {
       errors.preferredCourseDate = "Preferred course date is invalid."
     }
@@ -344,6 +300,189 @@ async function handleCourseSubmission(request,response){
 
 
 router.post('/course', handleCourseSubmission);
+
+async function sendThankYouEmailGuidedTrip(data) {
+  const { fullName, email, courseName } = data
+    const text = `
+        Dear ${fullName},
+        
+        Thank you for enquiring about the ${courseName}. We're excited to have you join us!
+        
+        Here's what to expect next:
+        
+        1. You'll receive a call from one of our representatives to confirm your eligiblity for the course.
+        2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot for the trip.
+        
+        If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
+        
+        We look forward to seeing you on the water!
+        
+        Best regards,
+        The National Outdoor School Team
+    `
+    const html = `
+      <p>Dear ${fullName},</p>
+      
+      <p>Thank you for registering for <strong>${courseName}</strong>. We're excited to have you join us!</p>
+      
+      <p>Here's what to expect next:</p>
+      
+      <ol>
+        <li>You'll receive a call from one of our representatives to confirm your eligiblity for the trip.</li>
+        <li>You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot on the trip.</li>
+      </ol>
+      
+      <p>If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.</p>
+
+      <p>We look forward to seeing you on the water!</p>
+      
+      <p>Best regards,<br>
+      The National Outdoor School Team</p>
+    `
+  await sendEmailSES([email], text, html, `Thank You for Registering for ${courseName}`, source, [replyToEmail])
+}
+async function addToGoogleSheetGuidedTrip(data) {
+  const { fullName, email, phone, age, gender, courseName, message } = data
+
+  // Authenticate with Google Sheets API
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  })
+
+  const sheets = google.sheets({ version: "v4", auth })
+
+  // Append data to the sheet
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: courseDataNameWise[courseName]?.sheetId,
+    range: "Leads!A:G", // Adjust based on your sheet 
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [
+        [
+          new Date().toISOString(), // Timestamp
+          fullName, 
+          email, 
+          phone, 
+          age, 
+          gender,
+          message
+        ],
+      ],
+    },
+  })
+}
+async function sendEmailToSchoolGuidedTrip(data) {
+  const { fullName, email, phone, age, gender, courseName, message } = data
+
+  const text = `
+      New registration for ${courseName}
+      Name: ${fullName}
+      Email: ${email}
+      Phone: ${phone}
+      Age: ${age}
+      Gender: ${gender}
+      Message: ${message || "No message provided"} 
+    `
+    const html = `
+      <h2>New registration for ${courseName}</h2>
+      <p><strong>Name:</strong> ${fullName}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Phone:</strong> ${phone}</p>
+      <p><strong>Age:</strong> ${age}</p>
+      <p><strong>Gender:</strong> ${gender}</p>
+      <p><strong>Message:</strong> ${message || "No message provided"}</p>
+    `
+  await sendEmailSES([source], text, html, "Kali guided trip enquiry", source, [email])
+}
+
+async function handleGuidedTripSubmission(request,response){
+  try {
+    const data = await request.body
+    
+    //trim all fields
+    for (const key in data) {
+      if (typeof data[key] === "string") {
+        (data[key]) = data[key].trim();
+      }
+    }
+    const errors = {}
+    console.log("received data",data)
+    // Validate fullName
+    if (!data.fullName || data.fullName.length < 2 || data.fullName.length > 200) {
+      errors.fullName = "Full name must be between 2 and 200 characters."
+    }
+
+    // Validate email
+    const emailPattern = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i
+    if (!data.email || !emailPattern.test(data.email)) {
+      errors.email = "Invalid email format."
+    }
+
+    // Validate phone
+    const phonePattern = /^[0-9+\-\s()]{10,15}$/
+    if (!data.phone || !phonePattern.test(data.phone)) {
+      errors.phone = "Phone number must be between 10 and 15 characters and valid."
+    }
+
+    // Validate age
+    if (!data.age || data.age < 15 || data.age > 100) {
+      errors.age = "Age cannot be less than 15 or greater than 100."
+    }
+
+    const validGenders = ["male", "female", "other"]
+    if (!data.gender || !validGenders.includes(data.gender)) {
+      errors.gender = "Gender is invalid."
+    }
+
+    // Validate courseName
+    if (!data.courseName || !(data.courseName in courseDataNameWise)) {
+      errors.courseName = "Course name is invalid."
+    }
+
+    // Validate message
+    if (data.message && data.message.length > 1000) {
+      errors.message = "Message cannot exceed 1000 characters."
+    }
+
+    // If there are errors, return a 400 response
+    if (Object.keys(errors).length > 0) {
+      return response.status(400).json({ error: "Validation failed", details: errors })
+    }
+
+  
+    // 2. Send email to school
+    try {
+      sendEmailToSchoolGuidedTrip(data)
+    } catch (error) {
+      console.error("Email to school error:", error)
+    }
+
+    // 3. Add to Google Sheet
+    try {
+      addToGoogleSheetGuidedTrip(data)
+    } catch (error) {
+      console.error("Google Sheet error:", error)
+    }
+
+    // 4. Send thank you email to registrant
+    try {
+      sendThankYouEmailGuidedTrip(data)
+    } catch (error) {
+      console.error("Thank you email error:", error)
+    }
+
+    return response.json({ success: true })
+  } catch (error) {
+    console.error("Registration error:", error)
+    return response.json({ error: "Failed to process registration" }, { status: 500 })
+  }
+}
+router.post('/guided-trip', handleGuidedTripSubmission);
+
 
 // Contact related functions
 
