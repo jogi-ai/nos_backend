@@ -22,6 +22,13 @@ const courseDataNameWise = {
     },
 }
 
+// Kids registration (no age/gender). Sheet ID via env or add below.
+const kidsCourseDataNameWise = {
+    "Himalayan White Water Kayaking Kids Summer Camp": {
+        sheetId: "1_A0bvDwdOuSbWcnDZSJnlZ6-PKyhwOc4iRzoHRAjsZE"
+    },
+}
+
 // Add contact to SendGrid list
 async function addToSendGridListCourse(data) {
   const { fullName, email, phone, age, gender, courseName } = data
@@ -300,6 +307,146 @@ async function handleCourseSubmission(request,response){
 
 
 router.post('/course', handleCourseSubmission);
+
+// Kids registration (no age/gender) - similar to course but simplified
+async function addToGoogleSheetKids(data) {
+  const { fullName, email, phone, courseName, message } = data;
+  const sheetConfig = kidsCourseDataNameWise[courseName];
+  if (!sheetConfig?.sheetId) {
+    console.warn("Kids course sheet ID not configured for:", courseName);
+    return;
+  }
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+  const sheets = google.sheets({ version: "v4", auth });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: sheetConfig.sheetId,
+    range: "Leads!A:E",
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [
+        [
+          new Date().toISOString(),
+          fullName,
+          email,
+          phone,
+          message || ""
+        ],
+      ],
+    },
+  });
+}
+
+async function sendEmailToSchoolKids(data) {
+  const { fullName, email, phone, courseName, message } = data;
+  const text = `
+      New kids registration for ${courseName}
+      Parent Name: ${fullName}
+      Email: ${email}
+      Phone: ${phone}
+      Message: ${message || "No message provided"}
+    `;
+  const html = `
+      <h2>New kids registration for ${courseName}</h2>
+      <p><strong>Parent Name:</strong> ${fullName}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Phone:</strong> ${phone}</p>
+      <p><strong>Message:</strong> ${message || "No message provided"}</p>
+    `;
+  await sendEmailSES([source], text, html, `Kids registration: ${courseName}`, source, [email]);
+}
+
+async function sendThankYouEmailKids(data) {
+  const { fullName, email, courseName } = data;
+  const text = `
+        Dear ${fullName},
+
+        Thank you for registering your interest for the ${courseName}. We're excited to have your child join us!
+
+        Here's what to expect next:
+
+        1. You'll receive a call from one of our representatives to confirm details.
+        2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot.
+
+        If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
+
+        We look forward to seeing you on the water!
+
+        Best regards,
+        The National Outdoor School Team
+    `;
+  const html = `
+      <p>Dear ${fullName},</p>
+      <p>Thank you for registering for <strong>${courseName}</strong>. We're excited to have your child join us!</p>
+      <p>Here's what to expect next:</p>
+      <ol>
+        <li>You'll receive a call from one of our representatives to confirm details.</li>
+        <li>You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot.</li>
+      </ol>
+      <p>If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.</p>
+      <p>We look forward to seeing you on the water!</p>
+      <p>Best regards,<br>The National Outdoor School Team</p>
+    `;
+  await sendEmailSES([email], text, html, `Thank You for Registering for ${courseName}`, source, [replyToEmail]);
+}
+
+async function handleKidsSubmission(request, response) {
+  try {
+    const data = await request.body;
+    for (const key in data) {
+      if (typeof data[key] === "string") {
+        data[key] = data[key].trim();
+      }
+    }
+    const errors = {};
+    if (!data.fullName || data.fullName.length < 2 || data.fullName.length > 200) {
+      errors.fullName = "Full name must be between 2 and 200 characters.";
+    }
+    const emailPattern = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+    if (!data.email || !emailPattern.test(data.email)) {
+      errors.email = "Invalid email format.";
+    }
+    const phonePattern = /^[0-9+\-\s()]{10,15}$/;
+    if (!data.phone || !phonePattern.test(data.phone)) {
+      errors.phone = "Phone number must be between 10 and 15 characters and valid.";
+    }
+    if (!data.courseName || !(data.courseName in kidsCourseDataNameWise)) {
+      errors.courseName = "Course name is invalid.";
+    }
+    if (data.message && data.message.length > 1000) {
+      errors.message = "Message cannot exceed 1000 characters.";
+    }
+    if (Object.keys(errors).length > 0) {
+      return response.status(400).json({ error: "Validation failed", details: errors });
+    }
+    try {
+      sendEmailToSchoolKids(data);
+    } catch (error) {
+      console.error("Email to school error:", error);
+    }
+    try {
+      await addToGoogleSheetKids(data);
+    } catch (error) {
+      console.error("Google Sheet error:", error);
+    }
+    try {
+      sendThankYouEmailKids(data);
+    } catch (error) {
+      console.error("Thank you email error:", error);
+    }
+    return response.json({ success: true });
+  } catch (error) {
+    console.error("Kids registration error:", error);
+    return response.status(500).json({ error: "Failed to process registration" });
+  }
+}
+
+router.post('/kids', handleKidsSubmission);
 
 async function sendThankYouEmailGuidedTrip(data) {
   const { fullName, email, courseName } = data
