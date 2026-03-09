@@ -373,9 +373,9 @@ async function sendThankYouEmailKids(data) {
         1. You'll receive a call from one of our representatives to confirm details.
         2. You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot.
 
-        If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.
+        If you have any questions before then, please don't hesitate to email us at info@nationaloutdoorschool.com or whatsapp us at +917019052454.
 
-        We look forward to seeing you on the water!
+        We look forward to confirming your spot soon!
 
         Best regards,
         The National Outdoor School Team
@@ -388,8 +388,8 @@ async function sendThankYouEmailKids(data) {
         <li>You'll receive a call from one of our representatives to confirm details.</li>
         <li>You will be sent a registration form and payment link. Submitting the form and payment will confirm your spot.</li>
       </ol>
-      <p>If you have any questions before then, please don't hesitate to contact us at info@nationaloutdoorschool.com.</p>
-      <p>We look forward to seeing you on the water!</p>
+      <p>If you have any questions before then, please don't hesitate to email us at info@nationaloutdoorschool.com or whatsapp us at +917019052454.</p>
+      <p>We look forward to confirming your spot soon!</p>
       <p>Best regards,<br>The National Outdoor School Team</p>
     `;
   await sendEmailSES([email], text, html, `Thank You for Registering for ${courseName}`, source, [replyToEmail]);
